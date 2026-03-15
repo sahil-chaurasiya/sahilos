@@ -1,44 +1,36 @@
-import { redirect } from "next/navigation";
+import HomeClient from "./home/HomeClient";
 
-const SITE_URL = "https://sahilos.vercel.app";
+const SITE_URL = "https://portfolio-next-eight-rose.vercel.app";
 
-// ── PUBLIC ROOT METADATA (SOCIAL PREVIEW SOURCE) ──────────────────
 export const metadata = {
-  title: "SahilOS — Personal Life & Career OS",
+  title: "Sahil Chaurasiya | Full-Stack Developer – Next.js, Django, React",
   description:
-    "Your personal operating system. Tasks, projects, habits, journal, budget, and AI assistant — all in one place.",
-
+    "Full-Stack Web Developer from Bhopal, India specializing in Next.js, React, Node.js, Django, and MongoDB.",
   metadataBase: new URL(SITE_URL),
-
   openGraph: {
-    title: "SahilOS — Personal Operating System",
+    title: "Sahil Chaurasiya | Full-Stack Developer",
     description:
-      "Tasks, projects, habits, journal, budget, AI assistant — all in one place.",
+      "Explore projects, resume, and developer journey built with Next.js, Django, and modern web technologies.",
     url: SITE_URL,
-    siteName: "SahilOS",
+    siteName: "Sahil Chaurasiya Portfolio",
     type: "website",
-
-    // ⭐ ABSOLUTE URL REQUIRED
     images: [
       {
         url: `${SITE_URL}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: "SahilOS — Personal Operating System",
+        alt: "Sahil Chaurasiya – Full-Stack Developer",
       },
     ],
   },
-
   twitter: {
     card: "summary_large_image",
-    title: "SahilOS — Personal Operating System",
-    description:
-      "Tasks, projects, habits, journal, budget, AI assistant — all in one place.",
+    title: "Sahil Chaurasiya | Full-Stack Developer",
+    description: "Full-Stack Developer from Bhopal, India. Next.js, Django, React, Node.js, MongoDB.",
     images: [`${SITE_URL}/og-image.png`],
   },
 };
 
-// ── REDIRECT USERS AFTER METADATA IS SERVED ───────────────────────
 export default function Page() {
-  redirect("/dashboard");
+  return <HomeClient />;
 }
