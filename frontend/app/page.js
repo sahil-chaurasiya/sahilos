@@ -1,36 +1,37 @@
-import HomeClient from "./home/HomeClient";
+import { redirect } from "next/navigation";
 
-const SITE_URL = "https://portfolio-next-eight-rose.vercel.app";
+const SITE_URL = "https://sahilos.vercel.app";
 
 export const metadata = {
-  title: "Sahil Chaurasiya | Full-Stack Developer – Next.js, Django, React",
+  title: "SahilOS — Personal Life & Career OS",
   description:
-    "Full-Stack Web Developer from Bhopal, India specializing in Next.js, React, Node.js, Django, and MongoDB.",
+    "Your personal operating system. Tasks, projects, habits, journal, budget, and AI assistant — all in one place.",
   metadataBase: new URL(SITE_URL),
   openGraph: {
-    title: "Sahil Chaurasiya | Full-Stack Developer",
+    title: "SahilOS — Personal Operating System",
     description:
-      "Explore projects, resume, and developer journey built with Next.js, Django, and modern web technologies.",
+      "Tasks, projects, habits, journal, budget, AI assistant — all in one place.",
     url: SITE_URL,
-    siteName: "Sahil Chaurasiya Portfolio",
+    siteName: "SahilOS",
     type: "website",
     images: [
       {
         url: `${SITE_URL}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: "Sahil Chaurasiya – Full-Stack Developer",
+        alt: "SahilOS — Personal Operating System",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Sahil Chaurasiya | Full-Stack Developer",
-    description: "Full-Stack Developer from Bhopal, India. Next.js, Django, React, Node.js, MongoDB.",
+    title: "SahilOS — Personal Operating System",
+    description:
+      "Tasks, projects, habits, journal, budget, AI assistant — all in one place.",
     images: [`${SITE_URL}/og-image.png`],
   },
 };
 
 export default function Page() {
-  return <HomeClient />;
+  redirect("/dashboard");
 }
