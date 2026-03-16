@@ -14,18 +14,20 @@ const { normaliseDate } = require("../utils/streakCalculator");
 const dashboardCache = new Map();
 const CACHE_TTL_MS = 30 * 1000; // 30 seconds
 
-const getCached = (userId) => {
-  const entry = dashboardCache.get(userId);
+const getCached = (userId, dateStr) => {
+  const key   = `${userId}:${dateStr}`;
+  const entry = dashboardCache.get(key);
   if (!entry) return null;
   if (Date.now() > entry.expiresAt) {
-    dashboardCache.delete(userId);
+    dashboardCache.delete(key);
     return null;
   }
   return entry.data;
 };
 
-const setCache = (userId, data) => {
-  dashboardCache.set(userId, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+const setCache = (userId, dateStr, data) => {
+  const key = `${userId}:${dateStr}`;
+  dashboardCache.set(key, { data, expiresAt: Date.now() + CACHE_TTL_MS });
 };
 
 /**
@@ -45,21 +47,33 @@ const invalidateDashboardCache = (userId) => {
  * @access  Private
  */
 const getDashboard = asyncHandler(async (req, res) => {
-  const userId = req.user._id;
+  const userId    = req.user._id;
   const userIdStr = String(userId);
 
   // ── Cache hit ──────────────────────────────────────────────────────────────
-  const cached = getCached(userIdStr);
+  const localDateStr = req.query.localDate && /^\d{4}-\d{2}-\d{2}$/.test(req.query.localDate)
+    ? req.query.localDate
+    : new Date().toISOString().slice(0, 10);
+
+  const cached = getCached(userIdStr, localDateStr);
   if (cached) {
     return res.json({ success: true, cached: true, data: cached });
   }
 
-  // ── Build aggregation queries in parallel ──────────────────────────────────
-  const todayMidnight = new Date();
-  todayMidnight.setHours(0, 0, 0, 0);
+  // ── Use client's local date if provided, otherwise fall back to server UTC ──
+  let todayMidnight, tomorrowMidnight;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(localDateStr)) {
+    const [y, m, d] = localDateStr.split("-").map(Number);
+    todayMidnight    = new Date(Date.UTC(y, m - 1, d));
+    tomorrowMidnight = new Date(Date.UTC(y, m - 1, d + 1));
+  } else {
+    todayMidnight = new Date();
+    todayMidnight.setHours(0, 0, 0, 0);
+    tomorrowMidnight = new Date(todayMidnight);
+    tomorrowMidnight.setDate(tomorrowMidnight.getDate() + 1);
+  }
 
-  const tomorrowMidnight = new Date(todayMidnight);
-  tomorrowMidnight.setDate(tomorrowMidnight.getDate() + 1);
+  const startOfMonth = new Date(Date.UTC(todayMidnight.getUTCFullYear(), todayMidnight.getUTCMonth(), 1));
 
   const [
     focusTasks,
@@ -141,9 +155,7 @@ const getDashboard = asyncHandler(async (req, res) => {
         $match: {
           userId,
           isDeleted: false,
-          date: { $gte: todayMidnight.getMonth() === 0
-            ? new Date(todayMidnight.getFullYear() - 1, 11, 1)
-            : new Date(todayMidnight.getFullYear(), todayMidnight.getMonth(), 1) },
+          date: { $gte: startOfMonth },
         },
       },
       { $group: { _id: "$type", total: { $sum: "$amount" } } },
@@ -192,7 +204,7 @@ const getDashboard = asyncHandler(async (req, res) => {
   };
 
   // ── Cache and respond ──────────────────────────────────────────────────────
-  setCache(userIdStr, dashboardData);
+  setCache(userIdStr, localDateStr, dashboardData);
 
   res.json({ success: true, cached: false, data: dashboardData });
 });

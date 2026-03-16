@@ -10,7 +10,9 @@ export function useDashboard() {
   const fetch = useCallback(async (silent = false) => {
     try {
       if (!silent) setLoading(true);
-      const res = await api.get("/dashboard");
+      // Send client's local date so server uses correct midnight for IST users
+      const localDate = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local tz
+      const res = await api.get(`/dashboard?localDate=${localDate}`);
       setData(res.data.data);
       setError(null);
     } catch (err) {
