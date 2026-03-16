@@ -427,7 +427,7 @@ export default function KnowledgePage() {
   if (activeCategory) params.category = activeCategory;
   if (search)         params.search   = search;
 
-  const { entries, loading, createEntry, updateEntry, deleteEntry } = useKnowledge(params);
+  const { entries, loading, hasMore, loadMore, createEntry, updateEntry, deleteEntry } = useKnowledge(params);
 
   const openEdit   = (e) => { setViewing(null); setEditing(e); setModal(true); };
   const openCreate = () =>  { setEditing(null); setModal(true); };
@@ -511,11 +511,18 @@ export default function KnowledgePage() {
               description="Capture books, movies, quotes, people, and articles."
               action={<Button variant="primary" onClick={openCreate}><Plus size={15} />Add Entry</Button>} />
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {entries.map((e) => (
-                <EntryCard key={e._id} entry={e} onEdit={openEdit} onDelete={handleDelete} onClick={setViewing} />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                {entries.map((e) => (
+                  <EntryCard key={e._id} entry={e} onEdit={openEdit} onDelete={handleDelete} onClick={setViewing} />
+                ))}
+              </div>
+              {hasMore && (
+                <div className="flex justify-center pt-2">
+                  <Button variant="outline" onClick={loadMore}>Load More</Button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

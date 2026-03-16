@@ -7,25 +7,41 @@ export function useKnowledge(params = {}) {
   const [entries, setEntries]       = useState([]);
   const [pagination, setPagination] = useState(null);
   const [loading, setLoading]       = useState(true);
+  const [page, setPage]             = useState(1);
 
-  const buildQuery = useCallback(() => {
+  // Reset to page 1 whenever filters change
+  useEffect(() => { setPage(1); }, [JSON.stringify(params)]);
+
+  const buildQuery = useCallback((p = 1) => {
     const q = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => { if (v) q.set(k, v); });
+    q.set("limit", "100"); // fetch up to 100 per page — enough for most vaults
+    q.set("page", String(p));
     return q.toString();
   }, [JSON.stringify(params)]);
 
-  const fetchEntries = useCallback(async () => {
+  const fetchEntries = useCallback(async (p = 1, append = false) => {
     try {
       setLoading(true);
-      const res = await api.get(`/knowledge?${buildQuery()}`);
-      setEntries(res.data.data);
+      const res = await api.get(`/knowledge?${buildQuery(p)}`);
+      if (append) {
+        setEntries((prev) => [...prev, ...res.data.data]);
+      } else {
+        setEntries(res.data.data);
+      }
       setPagination(res.data.pagination);
     } finally {
       setLoading(false);
     }
   }, [buildQuery]);
 
-  useEffect(() => { fetchEntries(); }, [fetchEntries]);
+  useEffect(() => { fetchEntries(1, false); }, [fetchEntries]);
+
+  const loadMore = useCallback(() => {
+    const next = page + 1;
+    setPage(next);
+    fetchEntries(next, true);
+  }, [page, fetchEntries]);
 
   const createEntry = useCallback(async (payload) => {
     const res = await api.post("/knowledge", payload);
@@ -47,5 +63,9 @@ export function useKnowledge(params = {}) {
     toast.success("Entry deleted");
   }, []);
 
-  return { entries, pagination, loading, fetchEntries, createEntry, updateEntry, deleteEntry };
+  return {
+    entries, pagination, loading,
+    fetchEntries, loadMore, createEntry, updateEntry, deleteEntry,
+    hasMore: pagination?.hasNext ?? false,
+  };
 }
