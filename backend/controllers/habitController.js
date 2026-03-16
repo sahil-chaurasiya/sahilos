@@ -4,6 +4,7 @@ const HabitLog = require("../models/HabitLog");
 const { logActivity } = require("../utils/activityLogger");
 const { getPagination } = require("../utils/pagination");
 const { invalidateDashboardCache } = require("./dashboardController");
+const { evaluateAchievements } = require("../utils/achievementEngine");
 const {
   calculateCurrentStreak,
   calculateLongestStreak,
@@ -170,6 +171,7 @@ const logToday = asyncHandler(async (req, res) => {
     streak: habit.currentStreak,
   });
   invalidateDashboardCache(req.user._id);
+  evaluateAchievements(req.user._id);
   res.json({
     success: true,
     data: { log, currentStreak: habit.currentStreak },

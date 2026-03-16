@@ -3,6 +3,7 @@ const Task = require("../models/Task");
 const { logActivity } = require("../utils/activityLogger");
 const { getPagination } = require("../utils/pagination");
 const { invalidateDashboardCache } = require("./dashboardController");
+const { evaluateAchievements } = require("../utils/achievementEngine");
 
 /**
  * @desc    Get all tasks (paginated, filterable)
@@ -152,6 +153,7 @@ const patchStatus = asyncHandler(async (req, res) => {
 
   if (status === "done") {
     logActivity(req.user._id, "task_completed", task._id, task.title);
+    evaluateAchievements(req.user._id);
   }
   invalidateDashboardCache(req.user._id);
   res.json({ success: true, data: task });

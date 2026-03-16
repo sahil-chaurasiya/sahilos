@@ -562,3 +562,49 @@ function EmptySlate({ emoji, text }) {
     </div>
   );
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// Achievements Widget
+// ─────────────────────────────────────────────────────────────────────────────
+export function AchievementsWidget({ achievements = [], summary = {} }) {
+  const unlocked = achievements.filter((a) => a.unlocked).slice(0, 8);
+  const pct = summary.total > 0 ? Math.round((summary.unlocked / summary.total) * 100) : 0;
+
+  return (
+    <div className="card p-5 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-base">🏆</span>
+          <span className="text-sm font-semibold text-slate-200">Achievements</span>
+        </div>
+        <Link href="/achievements" className="text-xs text-slate-500 hover:text-brand flex items-center gap-1">
+          All <ArrowRight size={11} />
+        </Link>
+      </div>
+
+      {/* Progress */}
+      <div>
+        <div className="flex justify-between text-xs text-slate-500 mb-1">
+          <span>{summary.unlocked || 0} unlocked</span>
+          <span>{pct}%</span>
+        </div>
+        <div className="h-1.5 bg-surface-3 rounded-full overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-brand to-violet-500 rounded-full transition-all duration-700"
+            style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+
+      {unlocked.length === 0 ? (
+        <p className="text-xs text-slate-500 text-center py-3">Complete habits & tasks to unlock achievements</p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {unlocked.map((a) => (
+            <div key={a._id} title={`${a.title} — ${a.description}`}
+              className="h-9 w-9 rounded-xl bg-brand/10 flex items-center justify-center text-lg cursor-default hover:bg-brand/20 transition-colors">
+              {a.icon}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

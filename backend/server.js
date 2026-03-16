@@ -19,6 +19,10 @@ const journalRoutes = require("./routes/journal");
 const activityRoutes = require("./routes/activity");
 const budgetRoutes = require("./routes/budget");
 const aiRoutes = require("./routes/ai");
+const knowledgeRoutes = require("./routes/knowledge");
+const lifeVisionRoutes = require("./routes/lifeVision");
+const dailyStatRoutes = require("./routes/dailyStat");
+const achievementRoutes = require("./routes/achievements");
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────────
 dotenv.config();
@@ -58,6 +62,10 @@ app.use("/api/journal", journalRoutes);
 app.use("/api/activity", activityRoutes);
 app.use("/api/budget", budgetRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/knowledge", knowledgeRoutes);
+app.use("/api/vision", lifeVisionRoutes);
+app.use("/api/daily-stats", dailyStatRoutes);
+app.use("/api/achievements", achievementRoutes);
 
 // ── 404 handler ────────────────────────────────────────────────────────────────
 app.use((_req, res) => {

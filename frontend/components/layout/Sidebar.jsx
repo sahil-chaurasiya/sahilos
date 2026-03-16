@@ -6,6 +6,7 @@ import {
   LayoutDashboard, CheckSquare, Folder, Zap, Lightbulb,
   Briefcase, GraduationCap, BookOpen, Activity, LogOut,
   ChevronRight, Wallet, Sparkles, Menu, X,
+  Brain, Compass, BarChart2, Trophy,
 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "@/context/AuthContext";
@@ -14,20 +15,25 @@ import { Avatar } from "@/components/ui";
 const ICON_MAP = {
   LayoutDashboard, CheckSquare, Folder, Zap, Lightbulb,
   Briefcase, GraduationCap, BookOpen, Activity, Wallet, Sparkles,
+  Brain, Compass, BarChart2, Trophy,
 };
 
 const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard",    icon: "LayoutDashboard" },
-  { href: "/tasks",     label: "Tasks",        icon: "CheckSquare" },
-  { href: "/projects",  label: "Projects",     icon: "Folder" },
-  { href: "/habits",    label: "Habits",       icon: "Zap" },
-  { href: "/ideas",     label: "Ideas",        icon: "Lightbulb" },
-  { href: "/jobs",      label: "Jobs",         icon: "Briefcase" },
-  { href: "/learning",  label: "Learning",     icon: "GraduationCap" },
-  { href: "/budget",    label: "Budget",       icon: "Wallet" },
-  { href: "/journal",   label: "Journal",      icon: "BookOpen" },
-  { href: "/activity",  label: "Activity",     icon: "Activity" },
-  { href: "/ai",        label: "AI Assistant", icon: "Sparkles" },
+  { href: "/dashboard",    label: "Dashboard",      icon: "LayoutDashboard" },
+  { href: "/tasks",        label: "Tasks",          icon: "CheckSquare" },
+  { href: "/projects",     label: "Projects",       icon: "Folder" },
+  { href: "/habits",       label: "Habits",         icon: "Zap" },
+  { href: "/ideas",        label: "Ideas",          icon: "Lightbulb" },
+  { href: "/jobs",         label: "Jobs",           icon: "Briefcase" },
+  { href: "/learning",     label: "Learning",       icon: "GraduationCap" },
+  { href: "/budget",       label: "Budget",         icon: "Wallet" },
+  { href: "/knowledge",    label: "Knowledge",      icon: "Brain" },
+  { href: "/vision",       label: "Life Vision",    icon: "Compass" },
+  { href: "/heatmap",      label: "Heatmap",        icon: "BarChart2" },
+  { href: "/achievements", label: "Achievements",   icon: "Trophy" },
+  { href: "/journal",      label: "Journal",        icon: "BookOpen" },
+  { href: "/activity",     label: "Activity",       icon: "Activity" },
+  { href: "/ai",           label: "AI Assistant",   icon: "Sparkles" },
 ];
 
 // ── Shared nav content (used by both desktop sidebar + mobile drawer) ─────────

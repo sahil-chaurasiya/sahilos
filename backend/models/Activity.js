@@ -12,6 +12,10 @@ const ACTIVITY_TYPES = [
   "idea_saved",
   "journal_written",
   "learning_updated",
+  "knowledge_added",
+  "vision_updated",
+  "achievement_unlocked",
+  "daily_stat_logged",
 ];
 
 const activitySchema = new mongoose.Schema(
