@@ -43,7 +43,7 @@ export default function RegisterPage() {
         <Input
           label="Full Name"
           type="text"
-          placeholder="Sahil Khan"
+          placeholder="John Doe"
           value={form.name}
           onChange={set("name")}
           autoComplete="name"
