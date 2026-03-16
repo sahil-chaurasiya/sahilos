@@ -2,6 +2,9 @@ const mongoose = require("mongoose");
 
 // All possible achievement definitions — seeded on first check per user
 const ACHIEVEMENT_DEFINITIONS = [
+  // ── TEST (remove after verifying popup works) ──────────────────────────────
+  { key: "first_login",    title: "Welcome to SahilOS", description: "Open the achievements page",           icon: "👋", conditionType: "knowledge_count", conditionValue: 1 },
+
   // Habits
   { key: "habit_streak_7",   title: "7-Day Streak",       description: "Complete a habit 7 days in a row",      icon: "🔥", conditionType: "habit_streak",    conditionValue: 7 },
   { key: "habit_streak_30",  title: "30-Day Streak",      description: "Complete a habit 30 days in a row",     icon: "🌟", conditionType: "habit_streak",    conditionValue: 30 },
