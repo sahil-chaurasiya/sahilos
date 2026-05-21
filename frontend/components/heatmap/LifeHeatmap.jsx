@@ -7,14 +7,12 @@ const LEVELS = {
   coding:  ["#1e2535", "#1e3a5f", "#1d4ed8", "#3b82f6", "#93c5fd"],
   reading: ["#1e2535", "#14432a", "#15803d", "#22c55e", "#86efac"],
   habits:  ["#1e2535", "#451a03", "#b45309", "#f59e0b", "#fcd34d"],
-  focus:   ["#1e2535", "#2e1065", "#7c3aed", "#a855f7", "#d8b4fe"],
 };
 
 const TRACK_META = {
   coding:  { label: "Coding",   key: "codingMinutes",   unit: "min", max: 240 },
   reading: { label: "Reading",  key: "readingMinutes",  unit: "min", max: 120 },
   habits:  { label: "Habits",   key: "habitsCompleted", unit: "",    max: 10  },
-  focus:   { label: "Focus",    key: "focusMinutes",    unit: "min", max: 240 },
 };
 
 function getLevel(value, max) {
@@ -72,7 +70,6 @@ export default function LifeHeatmap({ stats = [], weeks = 26 }) {
     return m;
   }, [stats]);
 
-  // Build columns (each column = 1 week = up to 7 days, Sun→Sat)
   const { columns, monthMarkers } = useMemo(() => {
     const start = startOfWeek(subDays(today, weeks * 7), { weekStartsOn: 0 });
     const days  = eachDayOfInterval({ start, end: today });
@@ -85,7 +82,6 @@ export default function LifeHeatmap({ stats = [], weeks = 26 }) {
     });
     if (col.length) cols.push(col);
 
-    // Month label at first column of each new month
     const markers = [];
     let lastMonth = "";
     cols.forEach((c, i) => {
@@ -100,10 +96,9 @@ export default function LifeHeatmap({ stats = [], weeks = 26 }) {
   const totalValue = stats.reduce((sum, s) => sum + (s[meta.key] ?? 0), 0);
   const activeDays = stats.filter((s) => (s[meta.key] ?? 0) > 0).length;
 
-  // Cell size + gap in px — used to position month labels precisely
   const CELL = 12;
   const GAP  = 3;
-  const COL_W = CELL + GAP; // 15px per column
+  const COL_W = CELL + GAP;
 
   return (
     <div className="card p-5 space-y-4">
@@ -140,7 +135,6 @@ export default function LifeHeatmap({ stats = [], weeks = 26 }) {
         className="overflow-x-auto overflow-y-visible pb-2"
         style={{ WebkitOverflowScrolling: "touch" }}
       >
-        {/* Inner container — natural width based on column count */}
         <div style={{ minWidth: columns.length * COL_W + 4 }}>
 
           {/* Month labels row */}
@@ -156,9 +150,8 @@ export default function LifeHeatmap({ stats = [], weeks = 26 }) {
             ))}
           </div>
 
-          {/* Day-of-week labels + grid side by side */}
+          {/* Day-of-week labels + grid */}
           <div className="flex gap-1">
-            {/* Day labels — Mon, Wed, Fri */}
             <div className="flex flex-col" style={{ gap: GAP, marginRight: 4 }}>
               {["", "M", "", "W", "", "F", ""].map((d, i) => (
                 <div key={i} style={{ height: CELL, width: 10 }}
@@ -168,7 +161,6 @@ export default function LifeHeatmap({ stats = [], weeks = 26 }) {
               ))}
             </div>
 
-            {/* The actual grid */}
             <div className="flex" style={{ gap: GAP }}>
               {columns.map((col, ci) => (
                 <div key={ci} className="flex flex-col" style={{ gap: GAP }}>
@@ -181,7 +173,6 @@ export default function LifeHeatmap({ stats = [], weeks = 26 }) {
                       isToday={dateStr === todayStr}
                     />
                   ))}
-                  {/* Pad short columns (last partial week) */}
                   {col.length < 7 && Array.from({ length: 7 - col.length }).map((_, i) => (
                     <div key={`pad-${i}`} style={{ width: CELL, height: CELL, flexShrink: 0 }} />
                   ))}
