@@ -5,8 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Edit2, Trash2, GitBranch, Globe,
   CheckCircle, Circle, ChevronRight,
-  X, ExternalLink, Target, BarChart3,
-  Calendar, Loader2,
+  X, ExternalLink, Target, ScrollText,
+  Calendar, Loader2, Feather,
 } from "lucide-react";
 import { Badge } from "@/components/ui";
 import { PROJECT_STATUSES, PROJECT_CATEGORIES } from "@/lib/constants";
@@ -14,97 +14,218 @@ import api from "@/lib/api";
 import clsx from "clsx";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Palette — explicit RGB values, no hex-opacity tricks
+// NOORI — "A Letter, Sealed"
+//
+// This project isn't a dashboard tile. It's an envelope. Closed, it just sits
+// there, quiet, waiting. Hover it and the seal cracks, the flap lifts, and a
+// line from the letter shows itself for a moment before folding away again.
+// Open it, and the whole thing reads like a page — ink, not UI chrome.
 // ─────────────────────────────────────────────────────────────────────────────
-const N = {
-  void:       "#0d0810",
-  deep:       "#180d1c",
-  bloom:      "#7c2d9e",
+
+// ─── Palette — candlelight, old paper, sealing wax. Nothing borrowed from the
+// rest of the app's cosmic/purple theme; this one is warm on purpose. ────────
+const L = {
+  void:        "#120b08",
+  deep:        "#1c120c",
   // Full-opacity readable colors
-  petal:      "rgb(221,160,221)",          // plum blossom
-  rose:       "rgb(242,196,232)",          // soft rose
-  gold:       "rgb(232,192,122)",          // warm gold
-  // Dimmed variants using rgba — explicit, predictable
-  petalDim:   "rgba(221,160,221,0.55)",
-  petalMuted: "rgba(221,160,221,0.35)",
-  roseDim:    "rgba(242,196,232,0.60)",
-  roseMuted:  "rgba(242,196,232,0.40)",
-  goldDim:    "rgba(232,192,122,0.65)",
+  parchment:   "rgb(232,214,178)",   // aged paper / ink-on-page text
+  rose:        "rgb(214,150,159)",   // dusty rose accent
+  gold:        "rgb(197,157,74)",    // antique gold foil
+  wax:         "rgb(155,32,53)",     // sealing wax
+  // Dimmed variants
+  parchDim:    "rgba(232,214,178,0.55)",
+  parchMuted:  "rgba(232,214,178,0.35)",
+  roseDim:     "rgba(214,150,159,0.60)",
+  goldDim:     "rgba(224,190,120,0.82)",
+  goldMuted:   "rgba(197,157,74,0.40)",
   // Borders
-  border:     "rgba(221,160,221,0.10)",
-  borderHot:  "rgba(221,160,221,0.28)",
+  border:      "rgba(197,157,74,0.13)",
+  borderHot:   "rgba(197,157,74,0.34)",
 };
 
-const WHISPERS = [
-  "a universe made just for her.",
-  "she needed a place. so one was built.",
-  "it listens. it remembers. it stays.",
-  "some things are too gentle for the world.",
-  "her thoughts rest here, always.",
-  "not built to impress. built to hold.",
-  "every corner carries her name.",
-  "a quiet love, made visible.",
+// A line from the letter — shown for a breath when the seal cracks.
+const LETTER_LINES = [
+  "sealed with something words can't hold.",
+  "every page here is addressed to her.",
+  "this ink was never meant to dry.",
+  "some things deserve their own paper.",
+  "written in the quiet hours, just for her.",
+  "a letter that keeps finding new pages.",
+  "not sent. just always, always here.",
+  "still writing, after all this time.",
 ];
 
-const FLOATERS = ["✦", "✧", "⋆", "·", "✦", "✧"];
+const PETALS = ["❀", "♡", "❦", "·", "❀", "♡"];
 const statusMeta = (v) => PROJECT_STATUSES.find((s) => s.value === v);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Singing bowl sound — soothing, peaceful
+// Sound — a seal pressed into warm wax, and paper unfolding underneath it.
+// Built loud enough to actually hear: previous version peaked around 0.05
+// gain, which is close to inaudible on most speakers. This one runs through
+// a compressor so it stays clean at a level you can actually hear.
 // ─────────────────────────────────────────────────────────────────────────────
-function playSingingBowl() {
+let _nooriCtx = null;
+function getNooriAudioCtx() {
+  if (typeof window === "undefined") return null;
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (!_nooriCtx) _nooriCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_nooriCtx.state === "suspended") _nooriCtx.resume().catch(() => {});
+    return _nooriCtx;
+  } catch (_) {
+    return null;
+  }
+}
+
+function playSealSound() {
+  const ctx = getNooriAudioCtx();
+  if (!ctx) return;
+  try {
     const now = ctx.currentTime;
-    // Fundamental + overtones of a Tibetan bowl
+
+    // Master bus — a gentle compressor glues the layers together and keeps
+    // things from clipping, so we can push the gain up and still sound warm
+    // instead of harsh.
+    const master = ctx.createGain();
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.setValueAtTime(-20, now);
+    comp.knee.setValueAtTime(22, now);
+    comp.ratio.setValueAtTime(4, now);
+    comp.attack.setValueAtTime(0.004, now);
+    comp.release.setValueAtTime(0.28, now);
+    master.gain.value = 1;
+    master.connect(comp);
+    comp.connect(ctx.destination);
+
+    // Warm bell — the sound of a seal settling, three soft harmonics
     [
-      { f: 220,  g: 0.055, d: 3.5 },
-      { f: 440,  g: 0.032, d: 3.0 },
-      { f: 660,  g: 0.018, d: 2.5 },
-      { f: 880,  g: 0.010, d: 2.0 },
-      { f: 1320, g: 0.005, d: 1.5 },
+      { f: 392, g: 0.30, d: 2.4 }, // G4
+      { f: 587, g: 0.19, d: 1.9 }, // D5
+      { f: 784, g: 0.11, d: 1.4 }, // G5
     ].forEach(({ f, g, d }, i) => {
       const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
+      const filt = ctx.createBiquadFilter();
       const pan  = ctx.createStereoPanner();
-      osc.connect(gain); gain.connect(pan); pan.connect(ctx.destination);
-      osc.type = "sine";
+      filt.type = "lowpass";
+      filt.frequency.value = 2600;
+      osc.type = "triangle";
       osc.frequency.value = f;
-      pan.pan.value = (i % 2 === 0 ? -0.12 : 0.12);
-      const t = now + i * 0.035;
+      pan.pan.value = i % 2 === 0 ? -0.08 : 0.08;
+      osc.connect(filt); filt.connect(gain); gain.connect(pan); pan.connect(master);
+      const t = now + i * 0.045;
       gain.gain.setValueAtTime(0, t);
-      gain.gain.linearRampToValueAtTime(g, t + 0.07);
+      gain.gain.linearRampToValueAtTime(g, t + 0.028);
       gain.gain.exponentialRampToValueAtTime(0.0001, t + d);
       osc.start(t); osc.stop(t + d + 0.1);
     });
-    // Soft breath swell
-    const buf  = ctx.createBuffer(1, ctx.sampleRate * 0.45, ctx.sampleRate);
+
+    // Paper unfolding underneath — filtered noise swell
+    const dur = 0.5;
+    const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
     const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.01;
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
     const src = ctx.createBufferSource();
-    const bpf = ctx.createBiquadFilter();
-    const bg  = ctx.createGain();
     src.buffer = buf;
-    bpf.type = "bandpass"; bpf.frequency.value = 300; bpf.Q.value = 2.5;
-    src.connect(bpf); bpf.connect(bg); bg.connect(ctx.destination);
-    bg.gain.setValueAtTime(0, now);
-    bg.gain.linearRampToValueAtTime(0.016, now + 0.14);
-    bg.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
-    src.start(now); src.stop(now + 0.5);
+    const bpf = ctx.createBiquadFilter();
+    bpf.type = "bandpass";
+    bpf.frequency.value = 1500;
+    bpf.Q.value = 0.9;
+    const ng = ctx.createGain();
+    src.connect(bpf); bpf.connect(ng); ng.connect(master);
+    ng.gain.setValueAtTime(0, now);
+    ng.gain.linearRampToValueAtTime(0.14, now + 0.08);
+    ng.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    src.start(now); src.stop(now + dur + 0.05);
   } catch (_) {}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Floating particle
+// Wax seal — sits closed, cracks open on hover
 // ─────────────────────────────────────────────────────────────────────────────
-function Floater({ x, delay, symbol, drift }) {
+function WaxSeal({ active, letter = "N", size = 34 }) {
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <motion.div
+        className="absolute inset-0"
+        style={{
+          borderRadius: "42% 58% 55% 45% / 45% 42% 58% 55%",
+          background: "radial-gradient(circle at 32% 26%, rgb(196,72,88) 0%, rgb(139,30,63) 46%, rgb(92,17,42) 100%)",
+        }}
+        animate={{
+          scale: active ? 1.08 : 1,
+          rotate: active ? -5 : 0,
+          boxShadow: active
+            ? "0 0 20px rgba(197,157,74,0.38), inset 0 1px 1px rgba(255,255,255,0.28), inset 0 -2px 4px rgba(0,0,0,0.45)"
+            : "0 2px 6px rgba(0,0,0,0.45), inset 0 1px 1px rgba(255,255,255,0.18), inset 0 -2px 4px rgba(0,0,0,0.45)",
+        }}
+        transition={{ duration: 0.45, ease: [0.34, 1.56, 0.64, 1] }}
+      />
+      <span
+        className="absolute inset-0 flex items-center justify-center select-none"
+        style={{
+          fontFamily: "'Parisienne', cursive",
+          fontSize: size * 0.5,
+          color: "rgba(232,214,178,0.90)",
+          textShadow: "0 1px 1px rgba(0,0,0,0.55)",
+        }}
+      >
+        {letter}
+      </span>
+      <motion.svg
+        viewBox="0 0 34 34"
+        className="absolute inset-0 pointer-events-none"
+        initial={false}
+        animate={{ opacity: active ? 1 : 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <motion.path
+          d="M6 20 L13 15 L15 22 L20 12 L27 17"
+          fill="none"
+          stroke="rgba(15,8,6,0.55)"
+          strokeWidth="0.9"
+          strokeLinecap="round"
+          initial={{ pathLength: 0 }}
+          animate={{ pathLength: active ? 1 : 0 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        />
+      </motion.svg>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Envelope flap seam — the fold-line of an envelope, along the top edge
+// ─────────────────────────────────────────────────────────────────────────────
+function FlapSeam({ active }) {
+  return (
+    <svg
+      className="absolute top-0 left-0 w-full pointer-events-none"
+      viewBox="0 0 100 34"
+      preserveAspectRatio="none"
+      style={{ height: 58 }}
+    >
+      <motion.path
+        d="M0 0 L50 29 L100 0"
+        fill="none"
+        strokeWidth="0.6"
+        animate={{ stroke: active ? "rgba(197,157,74,0.42)" : "rgba(197,157,74,0.15)" }}
+        transition={{ duration: 0.5 }}
+      />
+    </svg>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Falling petal — replaces the old star-sparkle floaters
+// ─────────────────────────────────────────────────────────────────────────────
+function Petal({ x, delay, symbol, drift }) {
   return (
     <motion.div
-      className="absolute pointer-events-none select-none text-[10px]"
-      style={{ left: `${x}%`, bottom: "12%", color: N.rose }}
-      initial={{ opacity: 0, y: 0, x: 0 }}
-      animate={{ opacity: [0, 0.6, 0], y: -60, x: drift }}
-      transition={{ duration: 3, delay, ease: [0.25, 0.46, 0.45, 0.94] }}
+      className="absolute pointer-events-none select-none text-[11px]"
+      style={{ left: `${x}%`, bottom: "10%", color: L.rose }}
+      initial={{ opacity: 0, y: 0, x: 0, rotate: 0 }}
+      animate={{ opacity: [0, 0.7, 0], y: -66, x: drift, rotate: drift > 0 ? 50 : -50 }}
+      transition={{ duration: 3.2, delay, ease: [0.25, 0.46, 0.45, 0.94] }}
     >
       {symbol}
     </motion.div>
@@ -112,15 +233,15 @@ function Floater({ x, delay, symbol, drift }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Constellation — delicate stars drawn on hover
+// Ink flourish — a hand-drawn calligraphy swirl, replaces the constellation
 // ─────────────────────────────────────────────────────────────────────────────
-function Constellation({ active }) {
-  const stars = [
-    { x: 12, y: 18 }, { x: 28, y: 10 }, { x: 48, y: 16 },
-    { x: 66, y: 8  }, { x: 84, y: 20 }, { x: 74, y: 36 },
-    { x: 54, y: 42 }, { x: 36, y: 34 }, { x: 20, y: 40 },
+function InkFlourish({ active }) {
+  const strokes = [
+    "M6 40 C 16 10, 34 10, 39 28 C 44 46, 62 46, 68 26",
+    "M14 8 C 24 22, 19 34, 31 34",
+    "M70 10 C 79 18, 74 30, 87 30",
   ];
-  const lines = [[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,0],[2,7],[3,6]];
+  const flecks = [[20, 15], [45, 30], [76, 18], [60, 40]];
   return (
     <motion.svg
       className="absolute inset-0 pointer-events-none"
@@ -131,21 +252,27 @@ function Constellation({ active }) {
       animate={{ opacity: active ? 1 : 0 }}
       transition={{ duration: 0.5 }}
     >
-      {lines.map(([a, b], i) => (
-        <motion.line key={i}
-          x1={stars[a].x} y1={stars[a].y} x2={stars[b].x} y2={stars[b].y}
-          stroke="rgba(242,196,232,0.15)" strokeWidth="0.25"
+      {strokes.map((d, i) => (
+        <motion.path
+          key={i}
+          d={d}
+          fill="none"
+          stroke="rgba(197,157,74,0.22)"
+          strokeWidth="0.55"
+          strokeLinecap="round"
           initial={{ pathLength: 0 }}
           animate={{ pathLength: active ? 1 : 0 }}
-          transition={{ duration: 0.9, delay: i * 0.045, ease: "easeOut" }}
+          transition={{ duration: 1.1, delay: i * 0.12, ease: "easeOut" }}
         />
       ))}
-      {stars.map((s, i) => (
-        <motion.circle key={i} cx={s.x} cy={s.y} r="0.7"
-          fill="rgb(242,196,232)"
+      {flecks.map(([cx, cy], i) => (
+        <motion.circle
+          key={i}
+          cx={cx} cy={cy} r="0.6"
+          fill={L.rose}
           initial={{ opacity: 0 }}
-          animate={{ opacity: active ? 0.5 : 0 }}
-          transition={{ duration: 0.4, delay: 0.08 + i * 0.04 }}
+          animate={{ opacity: active ? 0.45 : 0 }}
+          transition={{ duration: 0.4, delay: 0.3 + i * 0.08 }}
         />
       ))}
     </motion.svg>
@@ -153,7 +280,7 @@ function Constellation({ active }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Progress ring
+// Progress ring — reskinned as a small circular wax stamp
 // ─────────────────────────────────────────────────────────────────────────────
 function NooriProgressRing({ value, size = 56 }) {
   const r = (size - 8) / 2;
@@ -161,22 +288,22 @@ function NooriProgressRing({ value, size = 56 }) {
   const dash = (value / 100) * circ;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
-      <circle cx={size/2} cy={size/2} r={r} fill="none"
-        stroke="rgba(221,160,221,0.09)" strokeWidth={3} />
-      <circle cx={size/2} cy={size/2} r={r} fill="none"
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none"
+        stroke="rgba(197,157,74,0.10)" strokeWidth={3} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none"
         stroke="url(#nRing)" strokeWidth={3}
         strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
         style={{ transition: "stroke-dasharray 1.3s ease" }} />
       <defs>
         <linearGradient id="nRing" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%"  stopColor="#7c2d9e" />
-          <stop offset="100%" stopColor="#e8c07a" />
+          <stop offset="0%" stopColor={L.wax} />
+          <stop offset="100%" stopColor={L.gold} />
         </linearGradient>
       </defs>
-      <text x={size/2} y={size/2} textAnchor="middle" dominantBaseline="central"
-        transform={`rotate(90,${size/2},${size/2})`}
-        fill="rgb(242,196,232)" fontSize={10}
-        style={{ fontFamily: "'Times New Roman', serif", fontStyle: "italic" }}>
+      <text x={size / 2} y={size / 2} textAnchor="middle" dominantBaseline="central"
+        transform={`rotate(90,${size / 2},${size / 2})`}
+        fill={L.parchment} fontSize={10}
+        style={{ fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic", fontWeight: 600 }}>
         {value}%
       </text>
     </svg>
@@ -184,40 +311,42 @@ function NooriProgressRing({ value, size = 56 }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Drawer label / section helpers
+// A small heading within the letter itself — not a dashboard section label.
+// No uppercase, no border, no box. Just a line of the page.
 // ─────────────────────────────────────────────────────────────────────────────
-function DSection({ children }) {
-  return (
-    <div className="px-6 py-4" style={{ borderBottom: "1px solid rgba(221,160,221,0.07)" }}>
-      {children}
-    </div>
-  );
-}
-function DLabel({ children }) {
+function LetterHeading({ children }) {
   return (
     <p style={{
-      fontFamily: "'Times New Roman', Times, serif",
-      fontStyle: "italic",
-      fontSize: "0.68rem",
-      letterSpacing: "0.18em",
-      textTransform: "uppercase",
-      color: "rgba(221,160,221,0.55)",
-      marginBottom: "0.75rem",
+      fontFamily: "'Dancing Script', cursive",
+      fontWeight: 700,
+      fontSize: "1.5rem",
+      color: "rgb(214,150,159)",
+      marginBottom: "0.9rem",
     }}>
       {children}
     </p>
   );
 }
 
+// A thin, hand-ruled divider — replaces bordered card wrappers between blocks
+function Ruled() {
+  return (
+    <div className="my-6 flex items-center justify-center gap-3" aria-hidden>
+      <span style={{ width: 28, height: 1, background: "rgba(197,157,74,0.22)" }} />
+      <span style={{ color: "rgba(214,150,159,0.5)", fontSize: "0.7rem" }}>❦</span>
+      <span style={{ width: 28, height: 1, background: "rgba(197,157,74,0.22)" }} />
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
-// NOORI LINKED TASKS — styled for the Noori drawer
+// NOORI LINKED TASKS — "pages" — a plain ruled list, not a stack of cards
 // ─────────────────────────────────────────────────────────────────────────────
 const NOORI_TASK_STATUS = {
-  "todo":        { label: "to do",       color: "rgba(221,160,221,0.50)" },
-  "in-progress": { label: "in progress", color: "rgb(192,168,232)" },
-  "review":      { label: "review",      color: "rgb(232,192,122)" },
-  "done":        { label: "done",        color: "rgba(221,160,221,0.35)" },
+  "todo":        { label: "to do",       color: "rgba(232,214,178,0.50)" },
+  "in-progress": { label: "in progress", color: "rgb(214,150,159)" },
+  "review":      { label: "review",      color: L.gold },
+  "done":        { label: "done",        color: "rgba(232,214,178,0.35)" },
 };
 
 function NooriLinkedTasks({ projectId }) {
@@ -231,82 +360,63 @@ function NooriLinkedTasks({ projectId }) {
     setLoading(true);
     api.get(`/projects/${projectId}/tasks`)
       .then((r) => { setTasks(r.data.data); setError(null); })
-      .catch(() => setError("could not load tasks"))
+      .catch(() => setError("could not turn this page"))
       .finally(() => setLoading(false));
   }, [projectId]);
 
   const done = tasks.filter((t) => t.status === "done").length;
 
+  if (loading) {
+    return <p style={{ fontFamily: "'Caveat', cursive", fontSize: "0.95rem", color: L.goldMuted, fontStyle: "italic" }}>unfolding the pages…</p>;
+  }
+  if (error) {
+    return <p style={{ fontFamily: "'Caveat', cursive", fontSize: "0.95rem", color: L.goldMuted, fontStyle: "italic" }}>{error}</p>;
+  }
+  if (tasks.length === 0) {
+    return <p style={{ fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic", fontSize: "0.9rem", color: "rgba(197,157,74,0.35)" }}>no pages written yet.</p>;
+  }
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-3">
-        <DLabel>Linked Tasks {!loading && `(${done}/${tasks.length})`}</DLabel>
-        {tasks.length > 0 && (
-          <button
-            onClick={() => setExpanded((e) => !e)}
-            style={{ fontFamily: "'Times New Roman', serif", fontStyle: "italic", fontSize: "0.65rem", color: "rgba(221,160,221,0.45)", letterSpacing: "0.08em" }}
-          >
-            {expanded ? "collapse ↑" : "expand ↓"}
-          </button>
-        )}
-      </div>
+      <button
+        onClick={() => setExpanded((e) => !e)}
+        className="mb-1"
+        style={{ fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic", fontSize: "0.78rem", color: L.goldMuted, letterSpacing: "0.04em" }}
+      >
+        {done}/{tasks.length} finished — {expanded ? "collapse ↑" : "expand ↓"}
+      </button>
 
-      {loading && (
-        <p style={{ fontFamily: "'Caveat', cursive", fontSize: "0.9rem", color: "rgba(221,160,221,0.45)", fontStyle: "italic" }}>
-          gathering threads…
-        </p>
-      )}
-
-      {error && (
-        <p style={{ fontFamily: "'Caveat', cursive", fontSize: "0.9rem", color: "rgba(221,160,221,0.45)", fontStyle: "italic" }}>
-          {error}
-        </p>
-      )}
-
-      {!loading && !error && tasks.length === 0 && (
-        <p style={{ fontFamily: "'Times New Roman', serif", fontStyle: "italic", fontSize: "0.78rem", color: "rgba(221,160,221,0.35)" }}>
-          no threads woven yet.
-        </p>
-      )}
-
-      {!loading && !error && tasks.length > 0 && expanded && (
-        <div className="space-y-1.5">
-          {tasks.map((task) => {
+      {expanded && (
+        <div className="mt-2">
+          {tasks.map((task, i) => {
             const sm = NOORI_TASK_STATUS[task.status] || NOORI_TASK_STATUS["todo"];
             const isDone = task.status === "done";
             return (
               <div key={task._id}
-                className="flex items-start gap-3 rounded-2xl px-4 py-3"
-                style={{ background: "rgba(221,160,221,0.03)", border: "1px solid rgba(221,160,221,0.08)" }}
+                className="flex items-start gap-3 py-2.5"
+                style={{ borderTop: i === 0 ? "none" : "1px solid rgba(197,157,74,0.06)" }}
               >
                 <div className="mt-0.5 shrink-0">
                   {isDone
-                    ? <CheckCircle size={13} style={{ color: "rgba(221,160,221,0.55)" }} />
-                    : <Circle      size={13} style={{ color: "rgba(221,160,221,0.22)" }} />}
+                    ? <CheckCircle size={13} style={{ color: "rgba(232,214,178,0.55)" }} />
+                    : <Circle      size={13} style={{ color: "rgba(197,157,74,0.28)" }} />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className={isDone ? "line-through" : ""}
-                    style={{
+                  <p style={{
                       fontFamily: "'Caveat', cursive",
-                      fontSize: "0.98rem",
-                      color: isDone ? "rgba(221,160,221,0.35)" : "rgb(242,196,232)",
+                      fontSize: "1rem",
+                      color: isDone ? "rgba(232,214,178,0.55)" : L.parchment,
                       lineHeight: 1.4,
                     }}>
                     {task.title}
                   </p>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <span style={{
-                      fontFamily: "'Times New Roman', serif",
-                      fontStyle: "italic",
-                      fontSize: "0.62rem",
-                      letterSpacing: "0.1em",
-                      color: sm.color,
-                    }}>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span style={{ fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic", fontSize: "0.68rem", letterSpacing: "0.06em", color: sm.color }}>
                       {sm.label}
                     </span>
                     {task.dueDate && (
                       <span className="flex items-center gap-1"
-                        style={{ fontFamily: "'Times New Roman', serif", fontStyle: "italic", fontSize: "0.62rem", color: "rgba(221,160,221,0.40)" }}>
+                        style={{ fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic", fontSize: "0.68rem", color: "rgba(197,157,74,0.42)" }}>
                         <Calendar size={9} />
                         {new Date(task.dueDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                       </span>
@@ -323,7 +433,14 @@ function NooriLinkedTasks({ projectId }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// NOORI DRAWER
+// NOORI DRAWER — an actual letter, unfolded on the desk.
+//
+// Not a sidebar. No stat-card grid, no bordered sections stacked like a
+// settings page. It opens centered, sits at a faint tilt like a page just
+// laid down, and reads top to bottom the way a letter reads: a dateline,
+// a name, an opening line, the promises made, the pages written, a
+// postscript, a signature. Structure comes from typography and rhythm,
+// not from boxes.
 // ─────────────────────────────────────────────────────────────────────────────
 export function NooriDrawer({ projectId, onClose, onEdit, onDelete, onMilestoneToggle }) {
   const [project,  setProject]  = useState(null);
@@ -349,394 +466,358 @@ export function NooriDrawer({ projectId, onClose, onEdit, onDelete, onMilestoneT
   };
 
   const handleDelete = async () => {
-    if (!confirm("Remove Noori? This cannot be undone.")) return;
+    if (!confirm("Unseal and remove this letter for good? This cannot be undone.")) return;
     onClose(); await onDelete(projectId);
   };
   const handleEdit = () => { onClose(); setTimeout(() => onEdit(project), 100); };
 
-  const status     = project ? statusMeta(project.status) : null;
-  const done       = project?.milestones?.filter((m) => m.done).length || 0;
-  const total      = project?.milestones?.length || 0;
+  const status = project ? statusMeta(project.status) : null;
+  const done   = project?.milestones?.filter((m) => m.done).length || 0;
+  const total  = project?.milestones?.length || 0;
   const taskCounts = {};
   (project?.taskStats || []).forEach(({ _id, count }) => { taskCounts[_id] = count; });
   const totalTasks = Object.values(taskCounts).reduce((a, b) => a + b, 0);
+
+  const firstLetter = project?.description ? project.description.charAt(0) : "";
+  const restOfFirstLine = project?.description ? project.description.slice(1) : "";
 
   return (
     <>
       {/* Backdrop */}
       <motion.div
         className="fixed inset-0 z-40"
-        style={{ background: "radial-gradient(ellipse at 65% 30%, rgba(124,45,158,0.13) 0%, rgba(0,0,0,0.65) 100%)" }}
+        style={{
+          background: "radial-gradient(ellipse at 50% 35%, rgba(155,32,53,0.10) 0%, rgba(0,0,0,0.88) 100%)",
+          backdropFilter: "blur(3px)",
+        }}
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         onClick={onClose}
       />
 
-      {/* Panel */}
-      <motion.div
-        className="fixed right-0 top-0 h-full z-50 w-full max-w-lg flex flex-col overflow-hidden"
-        style={{
-          background: "linear-gradient(175deg, #0d0810 0%, #180d1c 45%, #0f0812 100%)",
-          borderLeft: "1px solid rgba(221,160,221,0.10)",
-          boxShadow: "-8px 0 60px rgba(124,45,158,0.14), -1px 0 0 rgba(221,160,221,0.04)",
-        }}
-        initial={{ x: "100%" }}
-        animate={{ x: 0 }}
-        exit={{ x: "100%" }}
-        transition={{ type: "spring", stiffness: 280, damping: 30 }}
-      >
-        {/* Ambient glow orbs — purely decorative */}
-        <div className="absolute -top-24 right-0 w-72 h-72 pointer-events-none rounded-full"
-          style={{ background: "radial-gradient(circle, rgba(124,45,158,0.15) 0%, transparent 65%)", filter: "blur(50px)" }} />
-        <div className="absolute bottom-0 -left-12 w-56 h-56 pointer-events-none rounded-full"
-          style={{ background: "radial-gradient(circle, rgba(232,192,122,0.06) 0%, transparent 65%)", filter: "blur(40px)" }} />
+      {/* The page itself — centered, not docked to a side, so it never reads as a UI panel */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-10 pointer-events-none">
+        <motion.div
+          className="relative w-full max-w-xl pointer-events-auto flex flex-col overflow-hidden"
+          style={{
+            maxHeight: "88vh",
+            background: "linear-gradient(172deg, #2a1c11 0%, #20150d 45%, #180f09 100%)",
+            border: "1px solid rgba(197,157,74,0.22)",
+            borderRadius: "3px 14px 5px 16px",
+            boxShadow: "0 30px 90px rgba(0,0,0,0.75), 0 0 0 1px rgba(0,0,0,0.4), 0 0 90px rgba(155,32,53,0.14), inset 0 0 0 1px rgba(197,157,74,0.05)",
+          }}
+          initial={{ opacity: 0, scale: 0.93, rotate: -1.6, y: 14 }}
+          animate={{ opacity: 1, scale: 1, rotate: -0.4, y: 0 }}
+          exit={{ opacity: 0, scale: 0.94, rotate: 1.2, y: 10 }}
+          transition={{ type: "spring", stiffness: 240, damping: 24 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Paper grain */}
+          <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
+            style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+              backgroundSize: "160px",
+            }}
+          />
+          {/* Folded corner — top right, like a page just set down */}
+          <div className="absolute top-0 right-0 pointer-events-none"
+            style={{
+              width: 0, height: 0,
+              borderStyle: "solid",
+              borderWidth: "0 30px 30px 0",
+              borderColor: "transparent rgba(0,0,0,0.35) transparent transparent",
+            }} />
+          <div className="absolute top-0 right-0 pointer-events-none"
+            style={{
+              width: 0, height: 0,
+              borderStyle: "solid",
+              borderWidth: "0 29px 29px 0",
+              borderColor: "transparent rgba(232,214,178,0.05) transparent transparent",
+            }} />
 
-        {/* Static micro-dots — decorative */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          {[...Array(10)].map((_, i) => (
-            <div key={i}
-              className="absolute rounded-full"
-              style={{
-                width: 1.2, height: 1.2,
-                background: "rgb(242,196,232)",
-                opacity: 0.08,
-                left: `${10 + i * 8.5}%`,
-                top: `${6 + (i % 4) * 20}%`,
-              }}
-            />
-          ))}
-        </div>
+          {/* Ambient candlelight */}
+          <div className="absolute -top-20 left-10 w-64 h-64 pointer-events-none rounded-full"
+            style={{ background: "radial-gradient(circle, rgba(197,157,74,0.10) 0%, transparent 65%)", filter: "blur(50px)" }} />
 
-        {/* ── Header ── */}
-        <div className="relative flex items-start gap-4 px-6 py-6"
-          style={{ borderBottom: "1px solid rgba(221,160,221,0.08)" }}>
-          <motion.div
-            animate={{ y: [0, -5, 0], rotate: [0, 7, 0, -7, 0] }}
-            transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
-            className="text-[1.6rem] shrink-0 mt-0.5 select-none">
-            🌙
-          </motion.div>
-
-          <div className="flex-1 min-w-0">
-            <h2 style={{
-              fontFamily: "'Dancing Script', cursive",
-              fontSize: "1.75rem",
-              fontWeight: 700,
-              background: "linear-gradient(125deg, rgb(232,192,122) 0%, rgb(242,196,232) 45%, rgb(221,160,221) 100%)",
-              WebkitBackgroundClip: "text",
-              backgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              color: "transparent",
-              lineHeight: 1.2,
-            }}>
-              {loading ? "…" : project?.title}
-            </h2>
-
-            {status && (
-              <div className="mt-1.5">
-                <Badge className={clsx(status.color, "opacity-70")}>{status.label}</Badge>
-              </div>
-            )}
-
-            <p style={{
-              fontFamily: "'Times New Roman', Times, serif",
-              fontStyle: "italic",
-              fontSize: "0.68rem",
-              color: "rgba(221,160,221,0.55)",
-              marginTop: "0.5rem",
-              letterSpacing: "0.14em",
-            }}>
-              ✦ a universe, just for her ✦
-            </p>
-          </div>
-
-          <div className="flex items-center gap-1 shrink-0">
+          {/* Close / edit / delete — small, floating, not a header bar */}
+          <div className="absolute top-3.5 right-3.5 z-30 flex items-center gap-0.5">
             {project && (
               <>
                 <button onClick={handleEdit}
-                  className="p-2 rounded-lg transition-all"
-                  style={{ color: "rgba(221,160,221,0.50)" }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = N.petal}
-                  onMouseLeave={(e) => e.currentTarget.style.color = "rgba(221,160,221,0.50)"}>
-                  <Edit2 size={14} />
+                  className="p-1.5 rounded-lg transition-all"
+                  style={{ color: "rgba(197,157,74,0.45)" }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = L.gold}
+                  onMouseLeave={(e) => e.currentTarget.style.color = "rgba(197,157,74,0.45)"}>
+                  <Edit2 size={13} />
                 </button>
                 <button onClick={handleDelete}
-                  className="p-2 rounded-lg text-slate-600 hover:text-red-400 transition-colors">
-                  <Trash2 size={14} />
+                  className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 transition-colors">
+                  <Trash2 size={13} />
                 </button>
               </>
             )}
             <button onClick={onClose}
-              className="p-2 rounded-lg transition-all"
-              style={{ color: "rgba(221,160,221,0.35)" }}
-              onMouseEnter={(e) => e.currentTarget.style.color = N.rose}
-              onMouseLeave={(e) => e.currentTarget.style.color = "rgba(221,160,221,0.35)"}>
-              <X size={15} />
+              className="p-1.5 rounded-lg transition-all"
+              style={{ color: "rgba(197,157,74,0.35)" }}
+              onMouseEnter={(e) => e.currentTarget.style.color = L.rose}
+              onMouseLeave={(e) => e.currentTarget.style.color = "rgba(197,157,74,0.35)"}>
+              <X size={14} />
             </button>
           </div>
-        </div>
 
-        {/* ── Body ── */}
-        {loading ? (
-          <div className="flex-1 flex items-center justify-center gap-3">
-            <motion.div animate={{ rotate: 360 }} transition={{ duration: 3, repeat: Infinity, ease: "linear" }}>
-              <Loader2 size={18} style={{ color: N.petal }} />
-            </motion.div>
-            <span style={{
-              fontFamily: "'Dancing Script', cursive",
-              fontSize: "1.1rem",
-              color: "rgba(221,160,221,0.60)",
-            }}>
-              opening the universe…
-            </span>
-          </div>
-        ) : !project ? (
-          <div className="flex-1 flex items-center justify-center"
-            style={{ fontFamily: "'Times New Roman', serif", fontStyle: "italic", color: "rgba(221,160,221,0.55)", fontSize: "0.88rem" }}>
-            the universe could not be found.
-          </div>
-        ) : (
-          <div className="flex-1 overflow-y-auto">
-
-            {/* ── Description — PLAIN DIV, zero animation, renders immediately ── */}
-            {project.description && (
-              <div
-                className="relative px-6 py-6"
-                style={{ borderBottom: "1px solid rgba(221,160,221,0.07)" }}
-              >
-                <div className="absolute inset-0 pointer-events-none"
-                  style={{ background: "linear-gradient(135deg, rgba(124,45,158,0.04) 0%, transparent 55%)" }} />
-                {/* Decorative quote mark */}
-                <div className="absolute top-2 left-3 text-6xl leading-none pointer-events-none select-none"
-                  style={{ color: "rgba(221,160,221,0.05)", fontFamily: "'Times New Roman', serif" }}>"</div>
-                <p className="relative"
-                  style={{
-                    fontFamily: "'Caveat', cursive",
-                    fontSize: "1.18rem",
-                    color: "rgb(242,196,232)",
-                    lineHeight: 1.85,
-                    letterSpacing: "0.01em",
-                  }}>
-                  {project.description}
-                </p>
-              </div>
-            )}
-
-            {/* ── Stats row ── */}
-            <div className="grid grid-cols-3 gap-3 px-6 py-5">
-              {[
-                {
-                  label: "progress",
-                  value: <NooriProgressRing value={project.progress} />,
-                },
-                {
-                  label: "milestones",
-                  value: (
-                    <div className="flex items-baseline gap-0.5">
-                      <span style={{ fontFamily: "'Dancing Script', cursive", fontSize: "1.6rem", fontWeight: 700, color: "rgb(242,196,232)" }}>{done}</span>
-                      <span style={{ fontFamily: "'Times New Roman', serif", fontStyle: "italic", fontSize: "0.8rem", color: "rgba(221,160,221,0.65)" }}>/{total}</span>
-                    </div>
-                  ),
-                  icon: <Target size={10} />,
-                },
-                {
-                  label: "tasks",
-                  value: <span style={{ fontFamily: "'Dancing Script', cursive", fontSize: "1.6rem", fontWeight: 700, color: "rgb(242,196,232)" }}>{totalTasks}</span>,
-                  icon: <BarChart3 size={10} />,
-                },
-              ].map((s, i) => (
-                <div key={i}
-                  className="rounded-2xl p-4 flex flex-col items-center justify-center gap-1 text-center"
-                  style={{ background: "rgba(221,160,221,0.04)", border: "1px solid rgba(221,160,221,0.09)" }}>
-                  <div className="flex items-center gap-1 justify-center">{s.value}</div>
-                  <p className="flex items-center gap-0.5 mt-1"
-                    style={{
-                      fontFamily: "'Times New Roman', serif",
-                      fontStyle: "italic",
-                      fontSize: "0.62rem",
-                      letterSpacing: "0.14em",
-                      textTransform: "uppercase",
-                      color: "rgba(221,160,221,0.60)",
-                    }}>
-                    {s.icon}{s.label}
-                  </p>
-                </div>
-              ))}
+          {/* ── The page ── */}
+          {loading ? (
+            <div className="flex-1 flex items-center justify-center gap-3 py-24">
+              <motion.div animate={{ rotate: 360 }} transition={{ duration: 3, repeat: Infinity, ease: "linear" }}>
+                <Loader2 size={18} style={{ color: L.gold }} />
+              </motion.div>
+              <span style={{ fontFamily: "'Dancing Script', cursive", fontSize: "1.1rem", color: L.goldDim }}>
+                unfolding the letter…
+              </span>
             </div>
+          ) : !project ? (
+            <div className="flex-1 flex items-center justify-center py-24"
+              style={{ fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic", color: L.goldDim, fontSize: "0.9rem" }}>
+              this page could not be found.
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto px-8 md:px-14 py-10">
 
-            {/* ── Categories ── */}
-            {project.categories?.length > 0 && (
-              <DSection>
-                <DLabel>Categories</DLabel>
-                <div className="flex gap-2 flex-wrap">
-                  {project.categories.map((cat) => {
+              {/* Dateline, like the top corner of a real letter */}
+              <p style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontStyle: "italic",
+                fontSize: "0.75rem",
+                letterSpacing: "0.06em",
+                color: L.goldDim,
+                marginBottom: "1.5rem",
+              }}>
+                {new Date(project.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+              </p>
+
+              {/* Seal + heading */}
+              <div className="flex items-start gap-4 mb-2">
+                <WaxSeal active letter="G" size={42} />
+                <div className="flex-1 min-w-0 pt-1">
+                  <h2 style={{
+                    fontFamily: "'Dancing Script', cursive",
+                    fontSize: "2rem",
+                    fontWeight: 700,
+                    background: "linear-gradient(125deg, rgb(197,157,74) 0%, rgb(232,214,178) 45%, rgb(214,150,159) 100%)",
+                    WebkitBackgroundClip: "text",
+                    backgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    color: "transparent",
+                    lineHeight: 1.15,
+                  }}>
+                    {project.title}
+                  </h2>
+                  {status && (
+                    <div className="mt-1.5">
+                      <Badge className={clsx(status.color, "opacity-70")}>{status.label}</Badge>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <p style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontStyle: "italic",
+                fontSize: "0.78rem",
+                color: L.goldDim,
+                letterSpacing: "0.06em",
+                marginBottom: "2rem",
+              }}>
+                ♡ sealed with everything I couldn't say aloud ♡
+              </p>
+
+              {/* Opening paragraph — the description, with a dropped first letter */}
+              {project.description && (
+                <p style={{
+                  fontFamily: "'Caveat', cursive",
+                  fontSize: "1.22rem",
+                  color: L.parchment,
+                  lineHeight: 1.85,
+                  letterSpacing: "0.01em",
+                }}>
+                  <span style={{
+                    float: "left",
+                    fontFamily: "'Dancing Script', cursive",
+                    fontWeight: 700,
+                    fontSize: "3rem",
+                    lineHeight: "2.2rem",
+                    paddingRight: "0.5rem",
+                    paddingTop: "0.2rem",
+                    color: L.gold,
+                  }}>
+                    {firstLetter}
+                  </span>
+                  {restOfFirstLine}
+                </p>
+              )}
+
+              {/* A small aside noting where things stand — not a stat grid */}
+              <p className="flex items-center justify-center gap-3 flex-wrap text-center"
+                style={{
+                  fontFamily: "'Cormorant Garamond', serif",
+                  fontStyle: "italic",
+                  fontSize: "0.82rem",
+                  color: L.goldDim,
+                  marginTop: "1.75rem",
+                }}>
+                <span className="inline-flex items-center gap-1"><Target size={11} />{done}/{total} promises kept</span>
+                <span style={{ opacity: 0.4 }}>·</span>
+                <span className="inline-flex items-center gap-1"><ScrollText size={11} />{totalTasks} pages</span>
+                <span style={{ opacity: 0.4 }}>·</span>
+                <span>{project.progress}% written</span>
+              </p>
+              <div className="h-px w-full mt-3 rounded-full overflow-hidden" style={{ background: "rgba(197,157,74,0.09)" }}>
+                <motion.div className="h-full rounded-full"
+                  style={{ background: `linear-gradient(90deg, ${L.wax}, ${L.rose}, ${L.gold})` }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${project.progress}%` }}
+                  transition={{ duration: 1.4, ease: "easeOut", delay: 0.2 }} />
+              </div>
+
+              {/* Categories / links — a footnote line, not boxed sections */}
+              {(project.categories?.length > 0 || project.repoLink || project.liveUrl) && (
+                <p className="flex items-center justify-center gap-2 flex-wrap text-center"
+                  style={{ marginTop: "1.25rem" }}>
+                  {project.categories?.map((cat) => {
                     const meta = PROJECT_CATEGORIES.find((c) => c.value === cat);
                     return meta ? (
-                      <span key={cat} className={clsx("inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium opacity-75", meta.color)}>
+                      <span key={cat} className={clsx("inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium opacity-70", meta.color)}>
                         {meta.icon} {meta.label}
                       </span>
                     ) : null;
                   })}
-                </div>
-              </DSection>
-            )}
-
-            {/* ── Links ── */}
-            {(project.repoLink || project.liveUrl) && (
-              <DSection>
-                <div className="space-y-3">
                   {project.repoLink && (
-                    <div>
-                      <DLabel>Repository</DLabel>
-                      <a href={project.repoLink} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 break-all transition-colors"
-                        style={{ fontFamily: "'Caveat', cursive", fontSize: "1rem", color: "rgba(221,160,221,0.70)" }}
-                        onMouseEnter={(e) => e.currentTarget.style.color = N.petal}
-                        onMouseLeave={(e) => e.currentTarget.style.color = "rgba(221,160,221,0.70)"}>
-                        <GitBranch size={12} />{project.repoLink}<ExternalLink size={10} className="shrink-0" />
-                      </a>
-                    </div>
+                    <a href={project.repoLink} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 transition-colors"
+                      style={{ fontFamily: "'Caveat', cursive", fontSize: "0.95rem", color: L.goldDim }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = L.gold}
+                      onMouseLeave={(e) => e.currentTarget.style.color = L.goldDim}>
+                      <GitBranch size={11} />repo<ExternalLink size={9} />
+                    </a>
                   )}
                   {project.liveUrl && (
-                    <div>
-                      <DLabel>Live Site</DLabel>
-                      <a href={project.liveUrl} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 break-all transition-colors"
-                        style={{ fontFamily: "'Caveat', cursive", fontSize: "1rem", color: "rgba(232,192,122,0.70)" }}
-                        onMouseEnter={(e) => e.currentTarget.style.color = N.gold}
-                        onMouseLeave={(e) => e.currentTarget.style.color = "rgba(232,192,122,0.70)"}>
-                        <Globe size={12} />{project.liveUrl}<ExternalLink size={10} className="shrink-0" />
-                      </a>
-                    </div>
+                    <a href={project.liveUrl} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 transition-colors"
+                      style={{ fontFamily: "'Caveat', cursive", fontSize: "0.95rem", color: L.roseDim }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = L.rose}
+                      onMouseLeave={(e) => e.currentTarget.style.color = L.roseDim}>
+                      <Globe size={11} />live<ExternalLink size={9} />
+                    </a>
                   )}
-                </div>
-              </DSection>
-            )}
+                </p>
+              )}
 
-            {/* ── Milestones ── */}
-            {total > 0 && (
-              <DSection>
-                <div className="flex items-center justify-between mb-4">
-                  <DLabel>Milestones</DLabel>
-                  <span style={{
-                    fontFamily: "'Times New Roman', serif",
-                    fontStyle: "italic",
-                    fontSize: "0.7rem",
-                    color: "rgba(221,160,221,0.55)",
-                  }}>
-                    {done}/{total} complete
-                  </span>
-                </div>
-                {/* Warm progress bar */}
-                <div className="h-px w-full mb-4 rounded-full overflow-hidden"
-                  style={{ background: "rgba(221,160,221,0.09)" }}>
-                  <motion.div className="h-full rounded-full"
-                    style={{ background: "linear-gradient(90deg, #7c2d9e, rgb(221,160,221), rgb(232,192,122))" }}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${project.progress}%` }}
-                    transition={{ duration: 1.6, ease: "easeOut", delay: 0.4 }} />
-                </div>
-                <div className="space-y-2">
-                  {project.milestones.map((m, idx) => (
-                    <button key={m._id}
-                      onClick={() => handleMilestone(m._id)}
-                      disabled={toggling === m._id}
-                      className={clsx(
-                        "w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left transition-all",
-                        toggling === m._id && "opacity-40 pointer-events-none"
-                      )}
-                      style={{
-                        background: m.done ? "rgba(221,160,221,0.05)" : "rgba(255,255,255,0.02)",
-                        border: m.done ? "1px solid rgba(221,160,221,0.15)" : "1px solid rgba(255,255,255,0.04)",
-                      }}>
-                      {m.done
-                        ? <CheckCircle size={15} style={{ color: N.petal }} className="shrink-0" />
-                        : <Circle      size={15} style={{ color: "rgba(221,160,221,0.25)" }} className="shrink-0" />}
-                      <span className={clsx("flex-1 text-left", m.done ? "line-through" : "")}
-                        style={{
-                          fontFamily: "'Caveat', cursive",
-                          fontSize: "0.98rem",
-                          // Done items: muted; not done: fully readable
-                          color: m.done ? "rgba(221,160,221,0.40)" : "rgb(242,196,232)",
-                        }}>
-                        {m.title}
-                      </span>
-                      {m.dueDate && (
-                        <span className="flex items-center gap-1 shrink-0"
-                          style={{ fontFamily: "'Times New Roman', serif", fontStyle: "italic", fontSize: "0.65rem", color: "rgba(221,160,221,0.50)" }}>
-                          <Calendar size={9} />{new Date(m.dueDate).toLocaleDateString()}
+              {/* Promises — the milestones, written straight into the page */}
+              {total > 0 && (
+                <>
+                  <Ruled />
+                  <LetterHeading>the promises I made</LetterHeading>
+                  <div>
+                    {project.milestones.map((m, i) => (
+                      <button key={m._id}
+                        onClick={() => handleMilestone(m._id)}
+                        disabled={toggling === m._id}
+                        className={clsx(
+                          "w-full flex items-center gap-3 py-2.5 text-left transition-opacity",
+                          toggling === m._id && "opacity-40 pointer-events-none"
+                        )}
+                        style={{ borderTop: i === 0 ? "none" : "1px solid rgba(197,157,74,0.06)" }}>
+                        {m.done
+                          ? <CheckCircle size={15} style={{ color: L.gold }} className="shrink-0" />
+                          : <Circle      size={15} style={{ color: "rgba(197,157,74,0.28)" }} className="shrink-0" />}
+                        <span className="flex-1 text-left"
+                          style={{
+                            fontFamily: "'Caveat', cursive",
+                            fontSize: "1.05rem",
+                            color: m.done ? "rgb(214,150,159)" : L.parchment,
+                          }}>
+                          {m.title}
                         </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </DSection>
-            )}
+                        {m.done && (
+                          <span className="shrink-0" style={{ fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic", fontSize: "0.68rem", letterSpacing: "0.08em", color: L.goldDim }}>
+                            kept
+                          </span>
+                        )}
+                        {m.dueDate && (
+                          <span className="flex items-center gap-1 shrink-0"
+                            style={{ fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic", fontSize: "0.72rem", color: L.goldDim }}>
+                            <Calendar size={9} />{new Date(m.dueDate).toLocaleDateString()}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
 
-            {/* ── Linked Tasks — full list ── */}
-            <DSection>
+              {/* Pages — the linked tasks */}
+              <Ruled />
+              <LetterHeading>the pages so far</LetterHeading>
               <NooriLinkedTasks projectId={projectId} />
-            </DSection>
 
-            {/* ── Notes ── */}
-            {project.notes && (
-              <DSection>
-                <DLabel>Notes</DLabel>
-                <div className="rounded-2xl px-5 py-4"
-                  style={{ background: "rgba(221,160,221,0.03)", border: "1px solid rgba(221,160,221,0.08)" }}>
+              {/* Postscript — notes */}
+              {project.notes && (
+                <>
+                  <Ruled />
+                  <p style={{ fontFamily: "'Cormorant Garamond', serif", fontStyle: "italic", fontSize: "0.85rem", color: L.goldDim, marginBottom: "0.5rem" }}>
+                    P.S.
+                  </p>
                   <p className="leading-relaxed whitespace-pre-wrap"
-                    style={{ fontFamily: "'Caveat', cursive", fontSize: "1.08rem", color: "rgb(242,196,232)" }}>
+                    style={{ fontFamily: "'Caveat', cursive", fontSize: "1.1rem", color: L.parchment }}>
                     {project.notes}
                   </p>
-                </div>
-              </DSection>
-            )}
+                </>
+              )}
 
-            {/* ── Timestamps ── */}
-            <div className="px-6 py-4 space-y-0.5"
-              style={{ borderTop: "1px solid rgba(221,160,221,0.05)" }}>
-              {[
-                `Created ${new Date(project.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}`,
-                `Last updated ${new Date(project.updatedAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}`,
-              ].map((t, i) => (
-                <span key={i} className="block"
-                  style={{ fontFamily: "'Times New Roman', serif", fontStyle: "italic", fontSize: "0.68rem", color: "rgba(221,160,221,0.45)" }}>
-                  {t}
-                </span>
-              ))}
+              {/* Signature */}
+              <div className="text-center" style={{ marginTop: "2.75rem" }}>
+                <p style={{ fontFamily: "'Parisienne', cursive", fontSize: "1.4rem", color: L.goldDim }}>
+                  — always, quietly, endlessly.
+                </p>
+                <p style={{
+                  fontFamily: "'Cormorant Garamond', serif",
+                  fontStyle: "italic",
+                  fontSize: "0.68rem",
+                  color: "rgba(197,157,74,0.35)",
+                  marginTop: "0.5rem",
+                }}>
+                  last revised {new Date(project.updatedAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+                </p>
+              </div>
+
+              {/* Continue writing — a quiet text link, not a CTA button */}
+              <div className="flex justify-center" style={{ marginTop: "2rem" }}>
+                <motion.button
+                  whileHover={{ letterSpacing: "0.08em" }}
+                  onClick={handleEdit}
+                  className="inline-flex items-center gap-2"
+                  style={{
+                    fontFamily: "'Dancing Script', cursive",
+                    fontSize: "1.15rem",
+                    color: L.gold,
+                    borderBottom: "1px solid rgba(197,157,74,0.30)",
+                    paddingBottom: "0.15rem",
+                  }}>
+                  <Feather size={13} /> continue writing
+                </motion.button>
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* ── Footer ── */}
-        {project && (
-          <div className="px-6 py-4 shrink-0" style={{ borderTop: "1px solid rgba(221,160,221,0.08)" }}>
-            <motion.button
-              whileTap={{ scale: 0.97 }}
-              whileHover={{ boxShadow: "0 0 28px rgba(221,160,221,0.14)" }}
-              onClick={handleEdit}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl transition-all"
-              style={{
-                background: "linear-gradient(135deg, rgba(124,45,158,0.16), rgba(221,160,221,0.07))",
-                border: "1px solid rgba(221,160,221,0.20)",
-                color: "rgb(221,160,221)",
-                fontFamily: "'Dancing Script', cursive",
-                fontSize: "1.1rem",
-              }}>
-              <Edit2 size={13} /> Edit Project
-            </motion.button>
-          </div>
-        )}
-      </motion.div>
+          )}
+        </motion.div>
+      </div>
     </>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// NOORI CARD — the breathing tile
+// NOORI CARD — the sealed envelope
 // ─────────────────────────────────────────────────────────────────────────────
 export default function NooriCard({ project, onView, onEdit, onDelete, onMilestoneToggle, onPin }) {
   const status = statusMeta(project.status);
-  const done   = project.milestones?.filter((m) => m.done).length || 0;
 
   const [active,     setActive]     = useState(false);
   const [whisper,    setWhisper]    = useState("");
@@ -755,7 +836,7 @@ export default function NooriCard({ project, onView, onEdit, onDelete, onMilesto
     if (!glowRef.current) return;
     const { x, y } = glowPos.current;
     glowRef.current.style.background =
-      `radial-gradient(ellipse 68% 52% at ${x}% ${y}%, rgba(124,45,158,0.22) 0%, rgba(232,192,122,0.06) 50%, transparent 70%)`;
+      `radial-gradient(ellipse 68% 52% at ${x}% ${y}%, rgba(197,157,74,0.16) 0%, rgba(155,32,53,0.08) 50%, transparent 70%)`;
   }, []);
 
   const spawnFloaters = () => {
@@ -765,16 +846,15 @@ export default function NooriCard({ project, onView, onEdit, onDelete, onMilesto
         x: 5 + Math.random() * 90,
         delay: i * 0.09,
         drift: (Math.random() - 0.5) * 24,
-        symbol: FLOATERS[Math.floor(Math.random() * FLOATERS.length)],
+        symbol: PETALS[Math.floor(Math.random() * PETALS.length)],
       }))
     );
   };
 
   const activate = useCallback((clientX, clientY) => {
-    setSoundReady(true);
     setActive(true);
     setWhisper((prev) => {
-      const pool = WHISPERS.filter((w) => w !== prev);
+      const pool = LETTER_LINES.filter((w) => w !== prev);
       return pool[Math.floor(Math.random() * pool.length)];
     });
     spawnFloaters();
@@ -786,7 +866,10 @@ export default function NooriCard({ project, onView, onEdit, onDelete, onMilesto
       };
       updateGlowCSS();
     }
-    if (soundReady) playSingingBowl();
+    // First hover unlocks the audio context (browsers require a gesture);
+    // every hover after that actually plays the seal.
+    if (soundReady) playSealSound();
+    setSoundReady(true);
   }, [soundReady, updateGlowCSS]);
 
   const deactivate = useCallback(() => {
@@ -829,10 +912,10 @@ export default function NooriCard({ project, onView, onEdit, onDelete, onMilesto
         ? { duration: 0.22, ease: "easeOut" }
         : { duration: 8, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }
       }
-      className="relative overflow-hidden cursor-pointer rounded-2xl flex flex-col gap-3.5 p-5 group select-none h-full"
+      className="relative overflow-hidden cursor-pointer rounded-2xl flex flex-col gap-3.5 p-5 pt-9 group select-none h-full"
       style={{
-        background: "linear-gradient(155deg, #180d1c 0%, #160a1a 55%, #0d0810 100%)",
-        border: active ? "1px solid rgba(221,160,221,0.28)" : "1px solid rgba(221,160,221,0.10)",
+        background: "linear-gradient(155deg, #1c120c 0%, #180f0a 55%, #120b08 100%)",
+        border: active ? "1px solid rgba(197,157,74,0.30)" : "1px solid rgba(197,157,74,0.12)",
         willChange: "transform",
         transition: "border-color 0.5s ease",
       }}
@@ -850,29 +933,32 @@ export default function NooriCard({ project, onView, onEdit, onDelete, onMilesto
       />
 
       {/* Grain */}
-      <div className="absolute inset-0 pointer-events-none rounded-2xl opacity-[0.018]"
+      <div className="absolute inset-0 pointer-events-none rounded-2xl opacity-[0.02]"
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
           backgroundSize: "140px",
         }}
       />
 
-      {/* Top shimmer */}
-      <div className="absolute top-0 left-5 right-5 h-px pointer-events-none"
-        style={{ background: "linear-gradient(90deg, transparent, rgba(221,160,221,0.15), rgba(232,192,122,0.09), transparent)" }}
-      />
+      {/* Envelope flap seam */}
+      <FlapSeam active={active} />
 
-      {/* Constellation on hover */}
-      <Constellation active={active} />
+      {/* Wax seal, sitting on the flap point */}
+      <div className="absolute z-20" style={{ top: 22, left: "50%", transform: "translateX(-50%)" }}>
+        <WaxSeal active={active} letter="G" />
+      </div>
 
-      {/* Floating particles */}
+      {/* Ink flourish on hover */}
+      <InkFlourish active={active} />
+
+      {/* Falling petals */}
       <AnimatePresence>
         {active && floaters.map((f) => (
-          <Floater key={f.id} x={f.x} delay={f.delay} drift={f.drift} symbol={f.symbol} />
+          <Petal key={f.id} x={f.x} delay={f.delay} drift={f.drift} symbol={f.symbol} />
         ))}
       </AnimatePresence>
 
-      {/* Hover overlay — NO transform on content, pure opacity */}
+      {/* Hover overlay — the seal has cracked, a line from the letter shows */}
       <AnimatePresence>
         {active && (
           <motion.div
@@ -882,7 +968,7 @@ export default function NooriCard({ project, onView, onEdit, onDelete, onMilesto
             exit={{ opacity: 0 }}
             transition={{ duration: 0.38 }}
             style={{
-              background: "radial-gradient(ellipse at center, rgba(13,8,16,0.92) 0%, rgba(13,8,16,0.75) 100%)",
+              background: "radial-gradient(ellipse at center, rgba(18,11,8,0.93) 0%, rgba(18,11,8,0.78) 100%)",
               backdropFilter: "blur(5px)",
             }}
           >
@@ -890,9 +976,8 @@ export default function NooriCard({ project, onView, onEdit, onDelete, onMilesto
               initial={{ scale: 0.5, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ delay: 0.04, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
-              style={{ fontSize: "2rem", lineHeight: 1 }}
             >
-              🌙
+              <Feather size={26} style={{ color: L.gold }} />
             </motion.div>
 
             <AnimatePresence mode="wait">
@@ -907,7 +992,7 @@ export default function NooriCard({ project, onView, onEdit, onDelete, onMilesto
                   fontFamily: "'Caveat', cursive",
                   fontSize: "1.08rem",
                   fontStyle: "italic",
-                  color: "rgba(242,196,232,0.82)",
+                  color: "rgba(232,214,178,0.85)",
                   lineHeight: 1.5,
                   letterSpacing: "0.015em",
                 }}
@@ -917,17 +1002,17 @@ export default function NooriCard({ project, onView, onEdit, onDelete, onMilesto
             </AnimatePresence>
 
             <p style={{
-              fontFamily: "'Times New Roman', Times, serif",
+              fontFamily: "'Cormorant Garamond', serif",
               fontStyle: "italic",
-              fontSize: "0.65rem",
-              color: "rgba(221,160,221,0.30)",
-              letterSpacing: "0.16em",
+              fontSize: "0.7rem",
+              color: "rgba(197,157,74,0.35)",
+              letterSpacing: "0.14em",
             }}>
-              ✦ only one person belongs here ✦
+              ♡ only she can open this ♡
             </p>
 
             <p className="text-[10px] md:hidden"
-              style={{ color: "rgba(221,160,221,0.28)", fontFamily: "'Caveat', cursive" }}>
+              style={{ color: "rgba(197,157,74,0.30)", fontFamily: "'Caveat', cursive" }}>
               tap again to open
             </p>
 
@@ -941,29 +1026,29 @@ export default function NooriCard({ project, onView, onEdit, onDelete, onMilesto
                 className="absolute bottom-3.5 left-4 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl pointer-events-auto transition-all"
                 style={{
                   background: project.pinned
-                    ? "rgba(232,192,122,0.12)"
-                    : "rgba(221,160,221,0.06)",
+                    ? "rgba(197,157,74,0.14)"
+                    : "rgba(197,157,74,0.06)",
                   border: project.pinned
-                    ? "1px solid rgba(232,192,122,0.30)"
-                    : "1px solid rgba(221,160,221,0.14)",
+                    ? "1px solid rgba(197,157,74,0.34)"
+                    : "1px solid rgba(197,157,74,0.14)",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = project.pinned ? "rgba(232,192,122,0.18)" : "rgba(221,160,221,0.12)";
-                  e.currentTarget.style.borderColor = project.pinned ? "rgba(232,192,122,0.45)" : "rgba(221,160,221,0.28)";
+                  e.currentTarget.style.background = project.pinned ? "rgba(197,157,74,0.20)" : "rgba(197,157,74,0.12)";
+                  e.currentTarget.style.borderColor = project.pinned ? "rgba(197,157,74,0.48)" : "rgba(197,157,74,0.28)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = project.pinned ? "rgba(232,192,122,0.12)" : "rgba(221,160,221,0.06)";
-                  e.currentTarget.style.borderColor = project.pinned ? "rgba(232,192,122,0.30)" : "rgba(221,160,221,0.14)";
+                  e.currentTarget.style.background = project.pinned ? "rgba(197,157,74,0.14)" : "rgba(197,157,74,0.06)";
+                  e.currentTarget.style.borderColor = project.pinned ? "rgba(197,157,74,0.34)" : "rgba(197,157,74,0.14)";
                 }}
                 title={project.pinned ? "Unpin" : "Pin to top"}
               >
-                <span style={{ fontSize: "0.7rem" }}>{project.pinned ? "✦" : "✧"}</span>
+                <span style={{ fontSize: "0.7rem" }}>{project.pinned ? "❀" : "❦"}</span>
                 <span style={{
-                  fontFamily: "'Times New Roman', Times, serif",
+                  fontFamily: "'Cormorant Garamond', serif",
                   fontStyle: "italic",
-                  fontSize: "0.62rem",
+                  fontSize: "0.65rem",
                   letterSpacing: "0.12em",
-                  color: project.pinned ? "rgba(232,192,122,0.85)" : "rgba(221,160,221,0.55)",
+                  color: project.pinned ? L.gold : L.goldMuted,
                 }}>
                   {project.pinned ? "pinned" : "pin"}
                 </span>
@@ -980,9 +1065,9 @@ export default function NooriCard({ project, onView, onEdit, onDelete, onMilesto
       >
         <button onClick={(e) => { e.stopPropagation(); onEdit(project); }}
           className="p-1.5 rounded-lg transition-colors"
-          style={{ color: "rgba(221,160,221,0.40)" }}
-          onMouseEnter={(e) => e.currentTarget.style.color = N.petal}
-          onMouseLeave={(e) => e.currentTarget.style.color = "rgba(221,160,221,0.40)"}>
+          style={{ color: "rgba(197,157,74,0.45)" }}
+          onMouseEnter={(e) => e.currentTarget.style.color = L.gold}
+          onMouseLeave={(e) => e.currentTarget.style.color = "rgba(197,157,74,0.45)"}>
           <Edit2 size={12} />
         </button>
         <button onClick={(e) => { e.stopPropagation(); onDelete(project._id); }}
@@ -995,18 +1080,12 @@ export default function NooriCard({ project, onView, onEdit, onDelete, onMilesto
       <div className="relative z-10 flex flex-col gap-3.5">
 
         {/* Title */}
-        <div className="flex items-center gap-2.5 min-w-0 pr-12">
-          <motion.span
-            animate={{ y: [0, -4, 0], rotate: [0, 6, 0] }}
-            transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
-            className="text-[15px] shrink-0 select-none">
-            🌙
-          </motion.span>
+        <div className="flex items-center justify-center min-w-0 pr-0 pt-1">
           <p style={{
             fontFamily: "'Dancing Script', cursive",
             fontSize: "1.3rem",
             fontWeight: 700,
-            background: "linear-gradient(128deg, rgb(232,192,122) 0%, rgb(242,196,232) 55%, rgb(221,160,221) 100%)",
+            background: "linear-gradient(128deg, rgb(197,157,74) 0%, rgb(232,214,178) 55%, rgb(214,150,159) 100%)",
             WebkitBackgroundClip: "text",
             backgroundClip: "text",
             WebkitTextFillColor: "transparent",
@@ -1024,11 +1103,11 @@ export default function NooriCard({ project, onView, onEdit, onDelete, onMilesto
 
         {/* Description — static, no animation */}
         {project.description && (
-          <p className="line-clamp-2" style={{
+          <p className="line-clamp-2 text-center" style={{
             fontFamily: "'Caveat', cursive",
             fontSize: "0.9rem",
             fontStyle: "italic",
-            color: "rgba(242,196,232,0.72)",
+            color: "rgba(214,150,159,0.75)",
             lineHeight: 1.55,
           }}>
             {project.description}
@@ -1036,7 +1115,7 @@ export default function NooriCard({ project, onView, onEdit, onDelete, onMilesto
         )}
 
         {/* Badges */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap justify-center">
           {status && <Badge className={clsx(status.color, "opacity-65 text-[10px]")}>{status.label}</Badge>}
           {project.categories?.map((cat) => {
             const meta = PROJECT_CATEGORIES.find((c) => c.value === cat);
@@ -1049,7 +1128,7 @@ export default function NooriCard({ project, onView, onEdit, onDelete, onMilesto
           {project.repoLink && (
             <a href={project.repoLink} target="_blank" rel="noopener noreferrer"
               className="text-[10px] flex items-center gap-1 z-30 transition-colors"
-              style={{ color: "rgba(221,160,221,0.50)", fontFamily: "'Caveat', cursive" }}
+              style={{ color: L.goldMuted, fontFamily: "'Caveat', cursive" }}
               onClick={(e) => e.stopPropagation()}>
               <GitBranch size={10} />Repo
             </a>
@@ -1057,28 +1136,28 @@ export default function NooriCard({ project, onView, onEdit, onDelete, onMilesto
           {project.liveUrl && (
             <a href={project.liveUrl} target="_blank" rel="noopener noreferrer"
               className="text-[10px] flex items-center gap-1 z-30 transition-colors"
-              style={{ color: "rgba(232,192,122,0.55)", fontFamily: "'Caveat', cursive" }}
+              style={{ color: "rgba(214,150,159,0.55)", fontFamily: "'Caveat', cursive" }}
               onClick={(e) => e.stopPropagation()}>
               <Globe size={10} />Live
             </a>
           )}
         </div>
 
-        {/* Progress bar */}
+        {/* Progress bar — wax ribbon */}
         <div>
           <div className="flex justify-between mb-1.5" style={{
-            fontFamily: "'Times New Roman', Times, serif",
+            fontFamily: "'Cormorant Garamond', serif",
             fontStyle: "italic",
-            fontSize: "0.62rem",
-            letterSpacing: "0.08em",
-            color: "rgba(221,160,221,0.40)",
+            fontSize: "0.68rem",
+            letterSpacing: "0.1em",
+            color: "rgba(197,157,74,0.45)",
           }}>
             <span>progress</span><span>{project.progress}%</span>
           </div>
           <div className="h-[1.5px] rounded-full overflow-hidden"
-            style={{ background: "rgba(221,160,221,0.08)" }}>
+            style={{ background: "rgba(197,157,74,0.08)" }}>
             <motion.div className="h-full rounded-full"
-              style={{ background: "linear-gradient(90deg, #7c2d9e, rgb(221,160,221), rgb(232,192,122))" }}
+              style={{ background: `linear-gradient(90deg, ${L.wax}, rgb(214,150,159), ${L.gold})` }}
               initial={{ width: 0 }}
               animate={{ width: `${project.progress}%` }}
               transition={{ duration: 1.4, ease: "easeOut" }}
@@ -1094,13 +1173,13 @@ export default function NooriCard({ project, onView, onEdit, onDelete, onMilesto
                 onClick={(e) => { e.stopPropagation(); onMilestoneToggle(project._id, m._id); }}
                 className="flex items-center gap-2 cursor-pointer z-30">
                 {m.done
-                  ? <CheckCircle size={11} style={{ color: N.petal }} className="shrink-0" />
-                  : <Circle      size={11} style={{ color: "rgba(221,160,221,0.22)" }} className="shrink-0" />}
+                  ? <CheckCircle size={11} style={{ color: L.gold }} className="shrink-0" />
+                  : <Circle      size={11} style={{ color: "rgba(197,157,74,0.25)" }} className="shrink-0" />}
                 <span className={m.done ? "line-through" : ""}
                   style={{
                     fontFamily: "'Caveat', cursive",
                     fontSize: "0.83rem",
-                    color: m.done ? "rgba(221,160,221,0.38)" : "rgba(242,196,232,0.80)",
+                    color: m.done ? "rgba(197,157,74,0.40)" : "rgba(232,214,178,0.85)",
                   }}>
                   {m.title}
                 </span>
@@ -1109,9 +1188,9 @@ export default function NooriCard({ project, onView, onEdit, onDelete, onMilesto
             {project.milestones.length > 3 && (
               <p className="flex items-center gap-0.5" style={{
                 fontSize: "0.65rem",
-                fontFamily: "'Times New Roman', serif",
+                fontFamily: "'Cormorant Garamond', serif",
                 fontStyle: "italic",
-                color: "rgba(221,160,221,0.35)",
+                color: "rgba(197,157,74,0.38)",
               }}>
                 +{project.milestones.length - 3} more <ChevronRight size={9} />
               </p>
@@ -1123,10 +1202,10 @@ export default function NooriCard({ project, onView, onEdit, onDelete, onMilesto
       {/* Desktop view hint */}
       <div className="absolute bottom-3.5 right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
         <span className="flex items-center gap-0.5" style={{
-          fontSize: "0.62rem",
-          fontFamily: "'Times New Roman', serif",
+          fontSize: "0.65rem",
+          fontFamily: "'Cormorant Garamond', serif",
           fontStyle: "italic",
-          color: "rgba(221,160,221,0.28)",
+          color: "rgba(197,157,74,0.32)",
         }}>
           Open <ChevronRight size={8} />
         </span>
@@ -1135,7 +1214,7 @@ export default function NooriCard({ project, onView, onEdit, onDelete, onMilesto
       {/* Bottom shimmer */}
       <div className="absolute bottom-0 left-5 right-5 h-px pointer-events-none"
         style={{
-          background: "linear-gradient(90deg, transparent, rgba(221,160,221,0.09), rgba(232,192,122,0.05), transparent)",
+          background: `linear-gradient(90deg, transparent, rgba(197,157,74,0.10), rgba(214,150,159,0.06), transparent)`,
           opacity: active ? 1 : 0.35,
           transition: "opacity 0.6s ease",
         }}
